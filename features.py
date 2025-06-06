@@ -28,11 +28,12 @@ def prepare_features(df_claims, df_hydro, df_storm):
     ]
     df_features = df[feature_cols]
 
-    for col in df_features.columns:
-        print(f"{col}: {df_features[col].dtype}")
-    print(df_features.columns)
-    print(df_features.head())
-    print(df_features.describe())
+    # for col in df_features.columns:
+    #     print(f"{col}: {df_features[col].dtype}")
+    # print(df_features.columns)
+    # print(df_features.head())
+    # print(df_features.describe())
+    print(y.describe())
 
     # 分类特征与数值特征明确划分
     numeric_features = [
@@ -55,4 +56,4 @@ def prepare_features(df_claims, df_hydro, df_storm):
     pipeline = Pipeline(steps=[("preprocessor", preprocessor)])
     X = pipeline.fit_transform(df_features)
 
-    return X, y
+    return X, np.log1p(y)  # log1p y
