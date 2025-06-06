@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 
 
-def load_claims():
+def load_claims(verbose=False):
     df = pd.read_csv('./data/FimaNfipClaims.csv')
     # 筛选条件
     df_filtered = df[(df['state'] == 'FL') & (df['yearOfLoss'].between(1985, 2023))]  # select FL, 1985 - 2023
@@ -10,6 +10,15 @@ def load_claims():
         df_filtered['buildingReplacementCost'].notna() &
         (df_filtered['buildingReplacementCost'] != 0)
         ]  # remove invalid
+    df_filtered['originalConstructionDate'] = pd.to_datetime(
+        df_filtered['originalConstructionDate'],
+        errors='coerce'
+    )
+    valid_construction = df_filtered['originalConstructionDate'].notna() & \
+                         (df_filtered['originalConstructionDate'] != '')
+    df_filtered = df_filtered[valid_construction]
+    df_filtered['constructionYear'] = pd.to_datetime(df_filtered['originalConstructionDate']).dt.year
+
     valid_causes = ['1', '2', '4', 'A']
     df_filtered = df_filtered[df_filtered['causeOfDamage'].isin(valid_causes)]  # causeOfDamage
     # 打印总数
@@ -35,8 +44,15 @@ def load_claims():
     df_filtered['ratedFloodZoneMapped'] = df_filtered['ratedFloodZone'].apply(map_flood_zone)
     df_filtered['floodZoneCurrentMapped'] = df_filtered['floodZoneCurrent'].apply(map_flood_zone)
 
+    if verbose:
+        print(df_filtered['occupancyType'])
+        print(df_filtered['occupancyType'].describe())
+        print(df_filtered['constructionYear'])
+        print(df_filtered['constructionYear'].describe())
+
     return df_filtered[
-        ['buildingReplacementCost', 'ratedFloodZoneMapped', 'ratedFloodZoneMapped', 'latitude', 'longitude']]
+        ['buildingReplacementCost', 'ratedFloodZoneMapped', 'ratedFloodZoneMapped', 'occupancyType', 'constructionYear',
+         'latitude', 'longitude']]
 
 
 def load_storms(verbose=False):
@@ -195,21 +211,45 @@ def hydro_by_zcta():
 def claims_by_zcta():
     df_claim = load_claims()
     df_zcta = load_zcta()
+
     # 步骤 1: 将 claim 转为 GeoDataFrame
     gdf_claim = gpd.GeoDataFrame(
         df_claim,
         geometry=gpd.points_from_xy(df_claim['longitude'], df_claim['latitude']),
-        crs="EPSG:4326"  # 标准 WGS84 经纬度坐标系
+        crs="EPSG:4326"
     )
+
     # 步骤 2: 确保 ZCTA 使用相同 CRS
     gdf_zcta = df_zcta.to_crs('EPSG:4326')
+
     # 步骤 3: 空间连接，获得每个 claim 所在的 ZCTA 区域
-    gdf_joined = gpd.sjoin(gdf_claim, gdf_zcta[['ZCTA5CE20', 'geometry']], how='inner', predicate='within')
-    # 步骤 4: 按 ZCTA 分组并求和
-    res = gdf_joined.groupby('ZCTA5CE20')['buildingReplacementCost'].sum().reset_index()
-    res.rename(columns={'buildingReplacementCost': 'buildingCostSum'}, inplace=True)
-    print(res)
-    print(res.describe())
+    gdf_joined = gpd.sjoin(
+        gdf_claim,
+        gdf_zcta[['ZCTA5CE20', 'geometry']],
+        how='inner',
+        predicate='within'
+    )
+
+    # 步骤 4: 聚合计算
+    df_grouped = gdf_joined.groupby('ZCTA5CE20').agg({
+        'buildingReplacementCost': 'sum',  # 总赔付金额
+        'constructionYear': 'mean',  # 平均建造年份
+        'occupancyType': lambda x: x.mode().iloc[0] if not x.mode().empty else None,  # 占用类型众数
+        'geometry': 'count'  # 行数 ≈ 理赔记录数量
+    }).reset_index()
+
+    # 重命名列
+    df_grouped.rename(columns={
+        'buildingReplacementCost': 'buildingCostSum',
+        'constructionYear': 'avgConstructionYear',
+        'occupancyType': 'mainOccupancyType',
+        'geometry': 'claimCount'
+    }, inplace=True)
+
+    print(df_grouped)
+    print(df_grouped.describe(include='all'))
+
+    return df_grouped
 
 
 def storms_by_zcta():
@@ -226,4 +266,4 @@ def storms_by_zcta():
 
 
 if __name__ == '__main__':
-    storms_by_zcta()
+    claims_by_zcta()
