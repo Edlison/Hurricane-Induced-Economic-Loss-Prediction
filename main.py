@@ -1,16 +1,10 @@
-# This is a sample Python script.
+from load_data import load_processed_data
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
-
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    df_claims, df_hydro, df_storms = load_processed_data()
+    print(df_claims.head())
+    print(df_claims.shape)
+    print(df_hydro.head())
+    print(df_hydro.shape)
+    print(df_storms.head())
+    print(df_storms.shape)

@@ -1,5 +1,6 @@
 import geopandas as gpd
 import pandas as pd
+from scipy.spatial import KDTree
 
 
 def load_claims(verbose=False):
@@ -271,7 +272,133 @@ def storms_by_zcta():
     return gdf_joined_sorted
 
 
+def save_data():
+    import os
+    # 创建目录（如果不存在）
+    os.makedirs('./processed_data', exist_ok=True)
+
+    # 加载数据
+    claims = claims_by_zcta()
+    hydro = hydro_by_zcta()
+    storms = storms_by_zcta()
+
+    # 去掉 geometry 列转为 DataFrame 并保存为 CSV
+    claims.drop(columns='geometry', errors='ignore').to_csv('./processed_data/claims_by_zcta.csv', index=False)
+    hydro.drop(columns='geometry', errors='ignore').to_csv('./processed_data/hydro_by_zcta.csv', index=False)
+    storms.drop(columns='geometry', errors='ignore').to_csv('./processed_data/storms_by_zcta.csv', index=False)
+
+
+def load_processed_data():
+    df_zcta = load_zcta()
+    # target
+    df_claims = pd.read_csv('./processed_data/claims_by_zcta.csv')
+    # need drop
+    df_hydro = pd.read_csv('./processed_data/hydro_by_zcta.csv')
+    df_hydro = filter_and_fill_hydro_in_claims(df_claims, df_hydro, df_zcta)
+    # need fill
+    df_storms = pd.read_csv('./processed_data/storms_by_zcta.csv')
+    df_storms = fill_storm_by_geodistance(df_claims, df_storms, df_zcta)
+    return df_claims, df_hydro, df_storms
+
+
+def filter_and_fill_hydro_in_claims(df_claims, df_hydro, gdf_zcta):
+    # 保留 claims 中涉及的 ZCTA
+    target_zctas = set(df_claims['ZCTA5CE20'])
+    df_hydro_filtered = df_hydro[df_hydro['ZCTA5CE20'].isin(target_zctas)].copy()
+
+    # 找出缺失的 ZCTA
+    existing_zctas = set(df_hydro_filtered['ZCTA5CE20'])
+    zcta_missing = list(target_zctas - existing_zctas)
+
+    # 准备 ZCTA 中心点坐标
+    gdf_zcta = gdf_zcta.to_crs("EPSG:4326")
+    gdf_zcta['lon'] = gdf_zcta.geometry.centroid.x
+    gdf_zcta['lat'] = gdf_zcta.geometry.centroid.y
+
+    # 添加坐标到 hydro 中
+    df_hydro_coords = df_hydro.merge(
+        gdf_zcta[['ZCTA5CE20', 'lon', 'lat']],
+        on='ZCTA5CE20',
+        how='left'
+    )
+
+    # 找出要填补的坐标
+    missing_coords = gdf_zcta[gdf_zcta['ZCTA5CE20'].isin(zcta_missing)][['ZCTA5CE20', 'lon', 'lat']]
+
+    # 建立 KDTree 用于最近邻查询
+    tree = KDTree(df_hydro_coords[['lon', 'lat']].values)
+    _, idx = tree.query(missing_coords[['lon', 'lat']].values)
+
+    # 查找最近邻 hydro 特征并覆盖 ZCTA
+    df_filled = df_hydro_coords.iloc[idx].copy().reset_index(drop=True)
+    df_filled['ZCTA5CE20'] = missing_coords['ZCTA5CE20'].values
+
+    # 只保留 hydro 特征列和 ZCTA
+    hydro_cols = [col for col in df_hydro.columns if col != 'ZCTA5CE20']
+    df_filled = df_filled[['ZCTA5CE20'] + hydro_cols]
+
+    # 合并原始和补齐后的 hydro 数据
+    df_hydro_filled = pd.concat([
+        df_hydro_filtered,
+        df_filled
+    ]).drop_duplicates('ZCTA5CE20').reset_index(drop=True)
+
+    # 最终只保留 target_zctas 范围
+    df_hydro_filled = df_hydro_filled[df_hydro_filled['ZCTA5CE20'].isin(target_zctas)]
+
+    return df_hydro_filled
+
+
+def fill_storm_by_geodistance(df_claim, df_storm, gdf_zcta):
+    # 转换为经纬度坐标系
+    gdf_zcta = gdf_zcta.to_crs("EPSG:4326")
+
+    # 计算 ZCTA 中心点坐标
+    gdf_zcta['lon'] = gdf_zcta.geometry.centroid.x
+    gdf_zcta['lat'] = gdf_zcta.geometry.centroid.y
+
+    # 将经纬度信息添加到 storm ZCTA 上
+    storm_with_coords = df_storm.merge(
+        gdf_zcta[['ZCTA5CE20', 'lon', 'lat']],
+        on='ZCTA5CE20',
+        how='left'
+    )
+
+    # 找出在 claim 中但不在 storm 中的 ZCTA
+    zcta_all = set(df_claim['ZCTA5CE20'])
+    zcta_with_storm = set(storm_with_coords['ZCTA5CE20'])
+    zcta_missing = zcta_all - zcta_with_storm
+
+    # 提取缺失 ZCTA 的坐标
+    missing_coords = gdf_zcta[gdf_zcta['ZCTA5CE20'].isin(zcta_missing)][['ZCTA5CE20', 'lon', 'lat']]
+
+    # 使用 KDTree 查找最近邻
+    tree = KDTree(storm_with_coords[['lon', 'lat']].values)
+    _, idx = tree.query(missing_coords[['lon', 'lat']].values)
+
+    # 用最近邻的 storm 数据补齐
+    df_filled = storm_with_coords.iloc[idx].reset_index(drop=True)
+    df_filled['ZCTA5CE20'] = missing_coords['ZCTA5CE20'].values  # 覆盖成目标 ZCTA
+
+    # 合并原始和补齐部分
+    df_storm_filled = pd.concat([
+        df_storm[['ZCTA5CE20', 'USA_WIND', 'USA_SSHS', 'USA_PRES']],
+        df_filled[['ZCTA5CE20', 'USA_WIND', 'USA_SSHS', 'USA_PRES']]
+    ]).drop_duplicates('ZCTA5CE20')
+
+    df_storm_filled = df_storm_filled[df_storm_filled['ZCTA5CE20'].isin(zcta_all)]
+
+    return df_storm_filled.sort_values('ZCTA5CE20').reset_index(drop=True)
+
+
 if __name__ == '__main__':
     # claims_by_zcta()
     # hydro_by_zcta()
-    storms_by_zcta()
+    # storms_by_zcta()
+    df_claims, df_hydro, df_storms = load_processed_data()
+    print(df_claims)
+    print(df_claims.shape)
+    print(df_hydro)
+    print(df_hydro.shape)
+    print(df_storms)
+    print(df_storms.shape)
