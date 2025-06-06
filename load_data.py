@@ -311,9 +311,18 @@ def filter_and_fill_hydro_in_claims(df_claims, df_hydro, gdf_zcta):
     zcta_missing = list(target_zctas - existing_zctas)
 
     # 准备 ZCTA 中心点坐标
-    gdf_zcta = gdf_zcta.to_crs("EPSG:4326")
-    gdf_zcta['lon'] = gdf_zcta.geometry.centroid.x
-    gdf_zcta['lat'] = gdf_zcta.geometry.centroid.y
+    # 转换到适当的投影坐标系（比如等面积投影 EPSG:3086，美国地区常用）
+    gdf_zcta_proj = gdf_zcta.to_crs(epsg=3086)
+
+    # 计算几何中心
+    gdf_zcta_proj['centroid'] = gdf_zcta_proj.geometry.centroid
+
+    # 如果你最终还是希望保留经纬度坐标的中心点，需要再转换回WGS84
+    gdf_zcta_centroid = gdf_zcta_proj.set_geometry('centroid').to_crs(epsg=4326)
+
+    # 提取中心点经纬度
+    gdf_zcta['lon'] = gdf_zcta_centroid.geometry.x
+    gdf_zcta['lat'] = gdf_zcta_centroid.geometry.y
 
     # 添加坐标到 hydro 中
     df_hydro_coords = df_hydro.merge(
@@ -350,12 +359,18 @@ def filter_and_fill_hydro_in_claims(df_claims, df_hydro, gdf_zcta):
 
 
 def fill_storm_by_geodistance(df_claim, df_storm, gdf_zcta):
-    # 转换为经纬度坐标系
-    gdf_zcta = gdf_zcta.to_crs("EPSG:4326")
+    # 转换到适当的投影坐标系（比如等面积投影 EPSG:3086，美国地区常用）
+    gdf_zcta_proj = gdf_zcta.to_crs(epsg=3086)
 
-    # 计算 ZCTA 中心点坐标
-    gdf_zcta['lon'] = gdf_zcta.geometry.centroid.x
-    gdf_zcta['lat'] = gdf_zcta.geometry.centroid.y
+    # 计算几何中心
+    gdf_zcta_proj['centroid'] = gdf_zcta_proj.geometry.centroid
+
+    # 如果你最终还是希望保留经纬度坐标的中心点，需要再转换回WGS84
+    gdf_zcta_centroid = gdf_zcta_proj.set_geometry('centroid').to_crs(epsg=4326)
+
+    # 提取中心点经纬度
+    gdf_zcta['lon'] = gdf_zcta_centroid.geometry.x
+    gdf_zcta['lat'] = gdf_zcta_centroid.geometry.y
 
     # 将经纬度信息添加到 storm ZCTA 上
     storm_with_coords = df_storm.merge(
