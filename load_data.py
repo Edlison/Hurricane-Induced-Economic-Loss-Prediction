@@ -2,14 +2,44 @@ import geopandas as gpd
 import pandas as pd
 
 
-def claims():
+def load_claims():
     df = pd.read_csv('./data/FimaNfipClaims.csv')
-    print(df.head(5))
-    cost = df['buildingReplacementCost']
-    print(cost.describe())
-    date = df['dateOfLoss']
-    print(date.head(100))
-    print(date.describe())
+    # 筛选条件
+    df_filtered = df[(df['state'] == 'FL') & (df['yearOfLoss'].between(1985, 2023))]  # select FL, 1985 - 2023
+    df_filtered = df_filtered[
+        df_filtered['buildingReplacementCost'].notna() &
+        (df_filtered['buildingReplacementCost'] != 0)
+        ]  # remove invalid
+    valid_causes = ['1', '2', '4', 'A']
+    df_filtered = df_filtered[df_filtered['causeOfDamage'].isin(valid_causes)]  # causeOfDamage
+    # 打印总数
+    print(f"Claim valid data: {len(df_filtered)}")  # causeOfDamage buildingReplacementCost latitude longitude
+
+    # print(df.columns)
+    # Select Flood: ratedFloodZone -> ratedFloodZoneMapped
+    def map_flood_zone(zone):
+        zone = str(zone)
+        if 'V' in zone:
+            return 'V'
+        elif 'A' in zone:
+            return 'A'
+        elif any(x in zone for x in ['B', 'C', 'X']):
+            return 'X'
+        elif 'D' in zone:
+            return 'D'
+        else:
+            return 'Unknown'  # 可选处理其他异常值
+
+    df_filtered['ratedFloodZoneMapped'] = df_filtered['ratedFloodZone'].apply(map_flood_zone)
+    df_filtered['floodZoneCurrentMapped'] = df_filtered['floodZoneCurrent'].apply(map_flood_zone)
+    # floodCharacteristicsIndicator 20w NA
+    # floodWaterDuration 20w NA
+    # floodproofedIndicator inbalance [20w, 32]
+    # cause = df_filtered[['latitude', 'longitude']]
+    # print(cause.describe())
+    # print(cause.value_counts(dropna=False))
+    return df_filtered[
+        ['buildingReplacementCost', 'ratedFloodZoneMapped', 'ratedFloodZoneMapped', 'latitude', 'longitude']]
 
 
 def storm():
@@ -119,5 +149,25 @@ def hydro_by_zcta():
     print(event_counts_by_zcta.describe())
 
 
+def claims_by_zcta():
+    df_claim = load_claims()
+    df_zcta = load_zcta()
+    # 步骤 1: 将 claim 转为 GeoDataFrame
+    gdf_claim = gpd.GeoDataFrame(
+        df_claim,
+        geometry=gpd.points_from_xy(df_claim['longitude'], df_claim['latitude']),
+        crs="EPSG:4326"  # 标准 WGS84 经纬度坐标系
+    )
+    # 步骤 2: 确保 ZCTA 使用相同 CRS
+    gdf_zcta = df_zcta.to_crs('EPSG:4326')
+    # 步骤 3: 空间连接，获得每个 claim 所在的 ZCTA 区域
+    gdf_joined = gpd.sjoin(gdf_claim, gdf_zcta[['ZCTA5CE20', 'geometry']], how='inner', predicate='within')
+    # 步骤 4: 按 ZCTA 分组并求和
+    res = gdf_joined.groupby('ZCTA5CE20')['buildingReplacementCost'].sum().reset_index()
+    res.rename(columns={'buildingReplacementCost': 'buildingCostSum'}, inplace=True)
+    print(res.head(5))
+    print(res.describe())
+
+
 if __name__ == '__main__':
-    hydro_by_zcta()
+    claims_by_zcta()
