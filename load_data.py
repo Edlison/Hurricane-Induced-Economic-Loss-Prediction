@@ -15,8 +15,10 @@ def load_claims():
     # 打印总数
     print(f"Claim valid data: {len(df_filtered)}")  # causeOfDamage buildingReplacementCost latitude longitude
 
-    # print(df.columns)
-    # Select Flood: ratedFloodZone -> ratedFloodZoneMapped
+    # Select Flood: ratedFloodZone, floodZoneCurrent -> ratedFloodZoneMapped
+    # floodCharacteristicsIndicator 20w NA
+    # floodWaterDuration 20w NA
+    # floodproofedIndicator inbalance [20w, 32]
     def map_flood_zone(zone):
         zone = str(zone)
         if 'V' in zone:
@@ -32,25 +34,66 @@ def load_claims():
 
     df_filtered['ratedFloodZoneMapped'] = df_filtered['ratedFloodZone'].apply(map_flood_zone)
     df_filtered['floodZoneCurrentMapped'] = df_filtered['floodZoneCurrent'].apply(map_flood_zone)
-    # floodCharacteristicsIndicator 20w NA
-    # floodWaterDuration 20w NA
-    # floodproofedIndicator inbalance [20w, 32]
-    # cause = df_filtered[['latitude', 'longitude']]
-    # print(cause.describe())
-    # print(cause.value_counts(dropna=False))
+
     return df_filtered[
         ['buildingReplacementCost', 'ratedFloodZoneMapped', 'ratedFloodZoneMapped', 'latitude', 'longitude']]
 
 
-def storm():
-    df = pd.read_csv('./data/ibtracs.ALL.list.v04r01.csv')
-    print(df.head(5))
-    sid = df['SID']
-    print(sid.describe())
-    date = df['ISO_TIME']
-    print(date.describe())
-    dist2land = df['DIST2LAND']
-    print(dist2land.describe())
+def load_storms(verbose=False):
+    # 读取数据
+    df = pd.read_csv('./data/ibtracs.ALL.list.v04r01.csv', low_memory=False)
+
+    # 确保时间列是 datetime 格式
+    df['ISO_TIME'] = pd.to_datetime(df['ISO_TIME'], errors='coerce')
+
+    # 过滤 SubBasin 为 GM（Gulf of Mexico），并且 ISO_TIME 在 1985 到 2023 年之间
+    mask = (df['SUBBASIN'] == 'GM') & \
+           (df['ISO_TIME'].dt.year >= 1985) & (df['ISO_TIME'].dt.year <= 2023)
+    df_filtered = df[mask]
+
+    # 筛选所需列
+    columns_of_interest = ['NAME', 'ISO_TIME', 'USA_WIND', 'USA_SSHS', 'USA_PRES', 'LON', 'LAT']
+    df_filtered = df_filtered[columns_of_interest]
+
+    if verbose:
+        # 打印筛选结果
+        print(f"Total filtered (GM, Date): {len(df_filtered)}")
+        print(f"Total unique hurricane name: {df_filtered['NAME'].nunique()}")
+
+    gdf_florida = load_florida()
+    gdf_storm = gpd.GeoDataFrame(
+        df_filtered,
+        geometry=gpd.points_from_xy(df_filtered['LON'], df_filtered['LAT']),
+        crs="EPSG:4326"
+    )
+
+    storm_columns = gdf_storm.columns.tolist()
+
+    gdf_storm_in_florida = gpd.sjoin(gdf_storm, gdf_florida, how='inner', predicate='intersects')
+    gdf_storm_in_florida['NAME'] = gdf_storm_in_florida['NAME_left']
+    gdf_storm_cleaned = gdf_storm_in_florida[storm_columns]
+
+    storm_names_in_florida = gdf_storm_in_florida['NAME_left'].dropna().unique()
+
+    if verbose:
+        print(f"Total data in Florida: {len(gdf_storm_cleaned)}")
+        print(f"Total unique hurricane name: {len(storm_names_in_florida)}")
+        print(gdf_storm_cleaned.head(5))
+        print(gdf_storm_cleaned.columns)
+
+    # str to numeric
+    gdf_storm_cleaned['USA_WIND'] = pd.to_numeric(gdf_storm_cleaned['USA_WIND'], errors='coerce').fillna(0)
+    gdf_storm_cleaned['USA_SSHS'] = pd.to_numeric(gdf_storm_cleaned['USA_SSHS'], errors='coerce').fillna(0)
+    gdf_storm_cleaned['USA_PRES'] = pd.to_numeric(gdf_storm_cleaned['USA_PRES'], errors='coerce').fillna(0)
+
+    return gdf_storm_cleaned
+
+
+def load_florida():
+    # 读取 US states 边界数据（例如来自 TIGER shapefile）
+    gdf_states = gpd.read_file("./data/cb_2018_us_state_20m/cb_2018_us_state_20m.shp")  # 或你的 states shapefile 路径
+    gdf_florida = gdf_states[gdf_states['NAME'] == 'Florida'].to_crs(epsg=4326)
+    return gdf_florida
 
 
 def load_hydro(verbose=False):
@@ -165,9 +208,22 @@ def claims_by_zcta():
     # 步骤 4: 按 ZCTA 分组并求和
     res = gdf_joined.groupby('ZCTA5CE20')['buildingReplacementCost'].sum().reset_index()
     res.rename(columns={'buildingReplacementCost': 'buildingCostSum'}, inplace=True)
-    print(res.head(5))
+    print(res)
     print(res.describe())
 
 
+def storms_by_zcta():
+    # 构造 geometry 点
+    gdf_storms = load_storms()
+    df_zcta = load_zcta()
+    # 步骤 2: 确保 ZCTA 使用相同 CRS
+    gdf_zcta = df_zcta.to_crs('EPSG:4326')
+    # 步骤 3: 空间连接，获得每个 claim 所在的 ZCTA 区域
+    gdf_joined = gpd.sjoin(gdf_storms, gdf_zcta[['ZCTA5CE20', 'geometry']], how='inner', predicate='within')
+    # 步骤 4: 按 ZCTA 分组并求和
+    print(gdf_joined)
+    print(gdf_joined.describe())
+
+
 if __name__ == '__main__':
-    claims_by_zcta()
+    storms_by_zcta()
