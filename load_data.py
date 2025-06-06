@@ -174,7 +174,7 @@ def hydro_by_zcta():
     joined['EventDescription'] = joined['EVENTTYPE'].map(eventtype_dict)
     existing_eventtypes = joined['EVENTTYPE'].dropna().unique()
     existing_eventtypes.sort()
-    print(existing_eventtypes)
+    print('Existing EventTypes: ', existing_eventtypes)
 
     # 映射 EVENTTYPE 到更简化的分类
     def simplify_eventtype(evt):
@@ -204,8 +204,10 @@ def hydro_by_zcta():
     # 可选：将列名映射为 eventtype_dict 中的名称（更可读）
     event_counts_by_zcta = event_counts_by_zcta.rename(columns=eventtype_dict)
     event_counts_by_zcta['ZCTA5CE20'] = event_counts_by_zcta['ZCTA5CE20'].astype(int)
+    event_counts_by_zcta.columns.name = None
     print(event_counts_by_zcta)
     print(event_counts_by_zcta.describe())
+    return event_counts_by_zcta
 
 
 def claims_by_zcta():
@@ -261,9 +263,15 @@ def storms_by_zcta():
     # 步骤 3: 空间连接，获得每个 claim 所在的 ZCTA 区域
     gdf_joined = gpd.sjoin(gdf_storms, gdf_zcta[['ZCTA5CE20', 'geometry']], how='inner', predicate='within')
     # 步骤 4: 按 ZCTA 分组并求和
-    print(gdf_joined)
-    print(gdf_joined.describe())
+    gdf_joined_sorted = gdf_joined[['ZCTA5CE20', 'NAME', 'USA_WIND', 'USA_SSHS', 'USA_PRES']] \
+        .sort_values(by='ZCTA5CE20') \
+        .reset_index(drop=True)
+    print(gdf_joined_sorted)
+    print(gdf_joined_sorted.describe())
+    return gdf_joined_sorted
 
 
 if __name__ == '__main__':
-    claims_by_zcta()
+    # claims_by_zcta()
+    # hydro_by_zcta()
+    storms_by_zcta()
