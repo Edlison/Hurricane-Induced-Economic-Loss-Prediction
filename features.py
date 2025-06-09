@@ -30,7 +30,7 @@ def prepare_features(df_claims, df_hydro, df_storm):
 
     # for col in df_features.columns:
     #     print(f"{col}: {df_features[col].dtype}")
-    # print(df_features.columns)
+    print(df_features.columns)
     # print(df_features.head())
     # print(df_features.describe())
     print(y.describe())
@@ -55,5 +55,9 @@ def prepare_features(df_claims, df_hydro, df_storm):
     # 管道处理
     pipeline = Pipeline(steps=[("preprocessor", preprocessor)])
     X = pipeline.fit_transform(df_features)
+
+    # 获取每个 transformer 的输出特征名
+    feature_names = pipeline.named_steps["preprocessor"].get_feature_names_out()
+    print('after process feature name: \n', feature_names)
 
     return X, np.log1p(y)  # log1p y
