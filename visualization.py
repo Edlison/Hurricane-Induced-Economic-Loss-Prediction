@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 
 
 def plot_feature_importance(model, feature_names, model_name: str, top_k: int = 20):
@@ -34,4 +35,42 @@ def plot_feature_importance(model, feature_names, model_name: str, top_k: int = 
     plt.xlabel("Importance")
     plt.title(f"Top {top_k} Feature Importances ({model_name})")
     plt.tight_layout()
+    plt.show()
+
+
+def plot_heatmap(df_viz: pd.DataFrame, gdf_zcta: gpd.GeoDataFrame, feature: str,
+                 cmap: str = 'OrRd', title: str = None, figsize=(10, 10)) -> None:
+    """
+    根据指定 feature 生成 ZCTA 区域热力图。
+
+    参数:
+        df_viz (pd.DataFrame): 包含 ZCTA5CE20 和特征列的数据。
+        gdf_zcta (gpd.GeoDataFrame): 包含 ZCTA5CE20 和 geometry 的地理数据。
+        feature (str): 想要绘图的特征列名。
+        cmap (str): 颜色映射方案，默认 'OrRd'。可选：'YlGnBu', 'viridis', 'plasma', 'Reds'
+        title (str): 图标题，默认根据 feature 自动生成。
+        figsize (tuple): 图尺寸，默认 (10, 10)。
+    """
+    # 类型转换，确保合并时一致
+    df_viz['ZCTA5CE20'] = df_viz['ZCTA5CE20'].astype(str)
+    gdf_zcta['ZCTA5CE20'] = gdf_zcta['ZCTA5CE20'].astype(str)
+
+    # 合并数据
+    gdf_merged = gdf_zcta.merge(df_viz[['ZCTA5CE20', feature]], on='ZCTA5CE20', how='left')
+
+    # 绘图
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    gdf_merged.plot(
+        column=feature,
+        cmap=cmap,
+        linewidth=0.1,
+        edgecolor='grey',
+        legend=True,
+        ax=ax
+    )
+
+    if title is None:
+        title = f'{feature} Heatmap by ZCTA in Florida'
+    ax.set_title(title)
+    ax.axis('off')
     plt.show()

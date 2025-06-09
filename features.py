@@ -28,12 +28,16 @@ def prepare_features(df_claims, df_hydro, df_storm):
     ]
     df_features = df[feature_cols]
 
+    # for visualization
+    df_viz = df_features.copy()
+    df_viz["ZCTA5CE20"] = df["ZCTA5CE20"].values
+
     # for col in df_features.columns:
     #     print(f"{col}: {df_features[col].dtype}")
-    print(df_features.columns)
+    # print(df_features.columns)
     # print(df_features.head())
     # print(df_features.describe())
-    print(y.describe())
+    # print(y.describe())
 
     # 分类特征与数值特征明确划分
     numeric_features = [
@@ -60,4 +64,4 @@ def prepare_features(df_claims, df_hydro, df_storm):
     feature_names = pipeline.named_steps["preprocessor"].get_feature_names_out()
     print('after process feature name: \n', feature_names)
 
-    return X, np.log1p(y)  # log1p y
+    return X, np.log1p(y), df_viz  # log1p y
