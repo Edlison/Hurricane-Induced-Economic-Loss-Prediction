@@ -31,6 +31,7 @@ def prepare_features(df_claims, df_hydro, df_storm):
     # for visualization
     df_viz = df_features.copy()
     df_viz["ZCTA5CE20"] = df["ZCTA5CE20"].values
+    df_viz["buildingCostSum"] = np.log1p(df["buildingCostSum"].values)
 
     # for col in df_features.columns:
     #     print(f"{col}: {df_features[col].dtype}")
