@@ -1,7 +1,7 @@
 from features import prepare_features
 from load_data import load_processed_data, load_zcta
 from model import evaluate_one_model
-from visualization import plot_feature_importance, plot_feature_importance_xtick, plot_heatmap, plot_heatmap_grid
+from visualization import plot_feature_importance, plot_feature_importance_xtick, plot_heatmap, plot_heatmap_grid, plot_heatmap_2
 
 # feature_names = ['building age', 'claim count', 'dam num', 'outlet num',
 #                  'station num', 'streamgage num', 'wind speed', 'pressure',
@@ -54,5 +54,13 @@ def run_plot_heatmap_grid():
     ])
 
 
+def run_plot_heatmap_2():
+    df_claims, df_hydro, df_storms = load_processed_data()
+    X, y, df_viz = prepare_features(df_claims, df_hydro, df_storms)
+    print('viz columns: ', df_viz.columns)
+    gdf_zcta = load_zcta()
+    plot_heatmap_2(df_viz, gdf_zcta)
+
+
 if __name__ == '__main__':
-    run_plot_heatmap()
+    run_plot_heatmap_2()

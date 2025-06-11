@@ -205,3 +205,70 @@ def plot_heatmap_grid(df_viz: pd.DataFrame, gdf_zcta: gpd.GeoDataFrame, features
     fig.subplots_adjust(left=0.0, right=0.96, top=0.98, bottom=0.02)
     plt.savefig("./imgs/plot_heatmap_grid.pdf", format="pdf", dpi=300)
     plt.show()
+
+
+def plot_heatmap_2(df_viz: pd.DataFrame, gdf_zcta: gpd.GeoDataFrame) -> None:
+    """
+    并列绘制两个特征的 ZCTA 区域热力图：totalCostInflated 与 Dam，
+    colorbar 纵向浮动在图的左下角，长度为原来的 0.6，可与地图重合。
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib as mpl
+
+    features = ['totalCostInflated', 'Dam']
+    feature_map = {
+        'totalCostInflated': 'Inflated cost\n(log(1 + x) USD)',
+        'Dam': 'Dams'
+    }
+
+    df_viz['ZCTA5CE20'] = df_viz['ZCTA5CE20'].astype(str)
+    gdf_zcta['ZCTA5CE20'] = gdf_zcta['ZCTA5CE20'].astype(str)
+
+    gdf_list = []
+    for feat in features:
+        gdf_merged = gdf_zcta.merge(df_viz[['ZCTA5CE20', feat]], on='ZCTA5CE20', how='left')
+        gdf_list.append(gdf_merged)
+
+    plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["font.size"] = 20
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 6), gridspec_kw={'wspace': 0.02})
+
+    for i, feat in enumerate(features):
+        gdf = gdf_list[i]
+        ax = axes[i]
+
+        # 绘图并获取 color data
+        cmap = plt.get_cmap('OrRd')
+        vmin = gdf[feat].min()
+        vmax = gdf[feat].max()
+        norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+
+        gdf.plot(
+            column=feat,
+            cmap=cmap,
+            linewidth=0.2,
+            edgecolor='grey',
+            ax=ax,
+            norm=norm
+        )
+
+        # ax.set_title(feature_map[feat], fontsize=20)
+        ax.axis('off')
+        ax.text(0.5, -0.04, f"({chr(97 + i)})", transform=ax.transAxes,
+                ha='center', va='top', fontsize=24)
+
+        # 自定义浮动 colorbar（纵向）位置，重叠左下角
+        cax = fig.add_axes([0.04 + i * 0.51, 0.18, 0.02, 0.5])  # [left, bottom, width, height]
+        cb = mpl.colorbar.ColorbarBase(
+            cax,
+            cmap=cmap,
+            norm=norm,
+            orientation='vertical'
+        )
+        cb.set_label(feature_map[feat], fontsize=24)
+        cb.ax.tick_params(labelsize=14)
+
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # 不留边
+    plt.savefig("./imgs/plot_heatmap_2.pdf", format="pdf", bbox_inches='tight', pad_inches=0, dpi=300)
+    plt.show()
