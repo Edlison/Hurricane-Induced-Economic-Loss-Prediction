@@ -41,7 +41,7 @@ def run_plot_heatmap():
     print('viz columns: ', df_viz.columns)
     gdf_zcta = load_zcta()
     plot_heatmap(df_viz, gdf_zcta,
-                 feature='totalCostInflated')  # elevatedBuildingIndicator, USA_WIND, Dam, totalCostInflated
+                 feature='Dam')  # elevatedBuildingIndicator, USA_WIND, Dam, totalCostInflated
 
 
 def run_plot_heatmap_grid():
@@ -55,4 +55,4 @@ def run_plot_heatmap_grid():
 
 
 if __name__ == '__main__':
-    run_plot_importance_xtick()
+    run_plot_heatmap()

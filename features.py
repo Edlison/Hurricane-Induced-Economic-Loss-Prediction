@@ -13,6 +13,7 @@ def prepare_features(df_claims, df_hydro, df_storm):
     # 目标变量
     # y = df["totalCost"].copy()
     y = df["totalCostInflated"].copy()
+    print(y.describe())
 
     # Feature Engineering
     df["buildingAge"] = 2025 - df["avgConstructionYear"]

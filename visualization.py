@@ -58,7 +58,7 @@ def plot_feature_importance_xtick(model, feature_names, model_name: str, top_k: 
 
     plt.rcParams["font.family"] = "Times New Roman"
     plt.rcParams["font.size"] = 14
-    oranges_color = cm.get_cmap('OrRd')(0.6)
+    oranges_color = cm.get_cmap('OrRd')(0.7)
 
     if hasattr(model, "feature_importances_"):  # Tree-based models
         importances = model.feature_importances_
@@ -101,8 +101,8 @@ def plot_heatmap(df_viz: pd.DataFrame, gdf_zcta: gpd.GeoDataFrame, feature: str,
         figsize (tuple): 图尺寸，默认 (10, 10)。
     """
     # feature map
-    feature_map = {'USA_WIND': 'Wind speed', 'claimCount': 'Claim count', 'Dam': 'Dam num',
-                   'buildingCostSum': 'Replacement cost'}
+    feature_map = {'USA_WIND': 'Wind speed', 'claimCount': 'Claim count', 'Dam': 'Dams',
+                   'buildingCostSum': 'Replacement cost', 'totalCostInflated': 'Inflated cost (log(1 + x) USD)'}
     # 类型转换，确保合并时一致
     df_viz['ZCTA5CE20'] = df_viz['ZCTA5CE20'].astype(str)
     gdf_zcta['ZCTA5CE20'] = gdf_zcta['ZCTA5CE20'].astype(str)
@@ -128,7 +128,7 @@ def plot_heatmap(df_viz: pd.DataFrame, gdf_zcta: gpd.GeoDataFrame, feature: str,
         }
     )
 
-    ax.set_title(f"{feature_map.get(feature, '')} Heatmap by ZCTA in Florida", fontsize=22)
+    # ax.set_title(f"{feature_map.get(feature, '')} Heatmap by ZCTA in Florida", fontsize=22)
     ax.axis('off')
 
     # 调整 colorbar tick 和 label 字体
@@ -136,7 +136,7 @@ def plot_heatmap(df_viz: pd.DataFrame, gdf_zcta: gpd.GeoDataFrame, feature: str,
     cbar.tick_params(labelsize=20)
     cbar.set_ylabel(feature_map.get(feature, ''), fontsize=22)
     plt.tight_layout()
-    plt.savefig(f"./imgs/plot_heatmap_{feature}.pdf", format="pdf", dpi=300)
+    plt.savefig(f"./imgs/plot_heatmap_{feature}.pdf", format="pdf", bbox_inches='tight', dpi=300)
     plt.show()
 
 
