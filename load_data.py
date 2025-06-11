@@ -5,12 +5,15 @@ from scipy.spatial import KDTree
 
 def load_claims(verbose=False):
     df = pd.read_csv('./data/FimaNfipClaims.csv')
+    hpi = pd.read_csv('./data/FLSTHPI.csv')
     # 筛选条件
     df_filtered = df[(df['state'] == 'FL') & (df['yearOfLoss'].between(1985, 2023))]  # select FL, 1985 - 2023
     df_filtered = df_filtered[
         df_filtered['buildingReplacementCost'].notna() &
-        (df_filtered['buildingReplacementCost'] != 0)
-        ]  # remove invalid
+        (df_filtered['buildingReplacementCost'] != 0)]  # remove building invalid
+    # df_filtered = df_filtered[
+    #     df_filtered['contentsReplacementCost'].notna() &
+    #     (df_filtered['contentsReplacementCost'] != 0)]  # remove content invalid
     df_filtered['originalConstructionDate'] = pd.to_datetime(
         df_filtered['originalConstructionDate'],
         errors='coerce'
@@ -25,10 +28,32 @@ def load_claims(verbose=False):
     # 打印总数
     print(f"Claim valid data: {len(df_filtered)}")  # causeOfDamage buildingReplacementCost latitude longitude
 
-    # Select Flood: ratedFloodZone, floodZoneCurrent -> ratedFloodZoneMapped
-    # floodCharacteristicsIndicator 20w NA
-    # floodWaterDuration 20w NA
-    # floodproofedIndicator inbalance [20w, 32]
+    # inflate
+    # hpi 有 'observation_date' 和 'FLSTHPI' 两列，先提取年份
+    hpi['year'] = pd.to_datetime(hpi['observation_date']).dt.year
+
+    # 按年份聚合为年度 HPI（如果已是年度，则跳过）
+    hpi_yearly = hpi.groupby('year')['FLSTHPI'].mean().reset_index()
+
+    # 获取最新年份的 HPI 作为基准（当前价格水平）
+    latest_hpi = hpi_yearly['FLSTHPI'].max()  # 2025-01-01
+
+    # 合并到 df，确保 df 中有 yearOfLoss
+    # df_filtered['yearOfLoss'] = pd.to_datetime(df_filtered['yearOfLoss'], errors='coerce').dt.year
+    df_filtered['yearOfLoss'] = df_filtered['yearOfLoss'].astype(int)
+    df_filtered = df_filtered.merge(hpi_yearly, left_on='yearOfLoss', right_on='year', how='left')
+    print(df_filtered[['yearOfLoss', 'year', 'FLSTHPI']].drop_duplicates().sort_values('yearOfLoss'))
+
+    # 计算通胀调整因子
+    df_filtered['inflateFactor'] = latest_hpi / df_filtered['FLSTHPI']
+    print(df_filtered['inflateFactor'].describe())
+
+    # 执行通胀调整
+    df_filtered['buildingReplacementCost_inflated'] = df_filtered['buildingReplacementCost'] * df_filtered[
+        'inflateFactor']
+    df_filtered['contentsReplacementCost_inflated'] = df_filtered['contentsReplacementCost'] * df_filtered[
+        'inflateFactor']
+
     def map_flood_zone(zone):
         zone = str(zone)
         if 'V' in zone:
@@ -46,13 +71,14 @@ def load_claims(verbose=False):
     df_filtered['floodZoneCurrentMapped'] = df_filtered['floodZoneCurrent'].apply(map_flood_zone)
 
     if verbose:
-        print(df_filtered['occupancyType'])
-        print(df_filtered['occupancyType'].describe())
-        print(df_filtered['constructionYear'])
-        print(df_filtered['constructionYear'].describe())
+        # print(df_filtered['buildingReplacementCost_inflated'])
+        print(df_filtered['buildingReplacementCost_inflated'].describe())
+        # print(df_filtered['contentsReplacementCost_inflated'])
+        print(df_filtered['contentsReplacementCost_inflated'].describe())
 
     return df_filtered[
-        ['buildingReplacementCost', 'contentsReplacementCost',
+        ['buildingReplacementCost', 'contentsReplacementCost', 'buildingReplacementCost_inflated',
+         'contentsReplacementCost_inflated',
          'numberOfFloorsInTheInsuredBuilding', 'lowestFloorElevation', 'lowestAdjacentGrade', 'elevationDifference',
          'elevatedBuildingIndicator', 'ratedFloodZoneMapped', 'ratedFloodZoneMapped', 'occupancyType',
          'constructionYear', 'latitude', 'longitude']]
@@ -239,6 +265,8 @@ def claims_by_zcta():
     df_grouped = gdf_joined.groupby('ZCTA5CE20').agg({
         'buildingReplacementCost': 'sum',  # 房屋赔付金额
         'contentsReplacementCost': 'sum',  # 室内损失金额
+        'buildingReplacementCost_inflated': 'sum',  # 房屋赔付金额Inflated
+        'contentsReplacementCost_inflated': 'sum',  # 室内损失金额Inflated
         'lowestFloorElevation': 'mean',  # 平均最低楼层高度
         'lowestAdjacentGrade': 'mean',  # 平均最低比邻高度
         'elevationDifference': 'mean',  # 平均最低比邻高度
@@ -253,6 +281,8 @@ def claims_by_zcta():
     df_grouped.rename(columns={
         'buildingReplacementCost': 'buildingCostSum',
         'contentsReplacementCost': 'contentCostSum',
+        'buildingReplacementCost_inflated': 'buildingCostSumInflated',
+        'contentsReplacementCost_inflated': 'contentsCostSumInflated',
         'numberOfFloorsInTheInsuredBuilding': 'numFloors',
         'lowestFloorElevation': 'lowestFloorElevation',
         'lowestAdjacentGrade': 'lowestAdjacentGrade',
@@ -264,6 +294,7 @@ def claims_by_zcta():
     }, inplace=True)
 
     df_grouped['totalCost'] = df_grouped['buildingCostSum'] + df_grouped['contentCostSum']
+    df_grouped['totalCostInflated'] = df_grouped['buildingCostSumInflated'] + df_grouped['contentsCostSumInflated']
 
     print(df_grouped)
     print(df_grouped.describe(include='all'))
@@ -426,6 +457,7 @@ if __name__ == '__main__':
     # claims_by_zcta()
     # hydro_by_zcta()
     # storms_by_zcta()
+    # load_claims(True)
     save_data()
     # df_claims, df_hydro, df_storms = load_processed_data()
     # print(df_claims)

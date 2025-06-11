@@ -41,8 +41,8 @@ def evaluate_metrics(y_true_log, y_pred_log):
 # ==== Model Configuration ====
 model_config = {
     'RF': RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42),
-    'XGB': XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=6, random_state=42, verbosity=0),
-    'NN': MLPRegressor(hidden_layer_sizes=(128,), alpha=0.001, max_iter=2000, early_stopping=True,
+    'XGB': XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42, verbosity=0),
+    'NN': MLPRegressor(hidden_layer_sizes=(128,), alpha=0.01, learning_rate_init=0.001, max_iter=2000, early_stopping=True,
                        validation_fraction=0.1, random_state=42),
     'GBM': GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
 }
@@ -81,6 +81,6 @@ def evaluate_one_model(X, y_log, model_name: str, seed: int = 42):
     for k, v_list in all_metrics.items():
         mean_v = np.mean(v_list)
         std_v = np.std(v_list)
-        print(f"{k}: {mean_v:.4f} ± {std_v:.4f}")
+        print(f"{k}: {mean_v:.2f} \pm {std_v:.2f}")
 
     return model

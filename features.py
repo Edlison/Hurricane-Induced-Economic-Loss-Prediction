@@ -11,8 +11,8 @@ def prepare_features(df_claims, df_hydro, df_storm):
     df = df.merge(df_storm, on="ZCTA5CE20", how="left")
 
     # 目标变量
-    # y = df["buildingCostSum"].copy()
-    y = df["totalCost"].copy()
+    # y = df["totalCost"].copy()
+    y = df["totalCostInflated"].copy()
 
     # Feature Engineering
     df["buildingAge"] = 2025 - df["avgConstructionYear"]
@@ -35,7 +35,7 @@ def prepare_features(df_claims, df_hydro, df_storm):
     df_viz = df_features.copy()
     df_viz["ZCTA5CE20"] = df["ZCTA5CE20"].values
     # df_viz["buildingCostSum"] = np.log1p(df["buildingCostSum"].values)
-    df_viz["totalCost"] = np.log1p(df["totalCost"].values)
+    df_viz["totalCostInflated"] = np.log1p(df["totalCostInflated"].values)
 
     # for col in df_features.columns:
     #     print(f"{col}: {df_features[col].dtype}")
