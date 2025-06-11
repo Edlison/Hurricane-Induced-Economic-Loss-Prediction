@@ -17,7 +17,7 @@ feature_names = ['num__buildingAge', 'num__Dam', 'num__Outlet', 'num__Station',
 def run_prediction():
     df_claims, df_hydro, df_storms = load_processed_data()
     X, y, _ = prepare_features(df_claims, df_hydro, df_storms)
-    model = evaluate_one_model(X, y, model_name='XGB')
+    model = evaluate_one_model(X, y, model_name='Stacked')
 
 
 def run_plot_importance():
@@ -36,4 +36,4 @@ def run_plot_heatmap():
 
 
 if __name__ == '__main__':
-    run_plot_importance()
+    run_prediction()

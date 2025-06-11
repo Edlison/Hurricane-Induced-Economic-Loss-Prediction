@@ -1,8 +1,10 @@
+from collections import defaultdict
+
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, StackingRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
-from sklearn.model_selection import train_test_split, cross_val_predict, KFold
+from sklearn.model_selection import KFold
 from sklearn.neural_network import MLPRegressor
 from xgboost import XGBRegressor
 
@@ -40,7 +42,7 @@ def evaluate_metrics(y_true_log, y_pred_log):
 model_config = {
     'RF': RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42),
     'XGB': XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=6, random_state=42, verbosity=0),
-    'NN': MLPRegressor(hidden_layer_sizes=(100,), alpha=0.001, max_iter=1000, early_stopping=True,
+    'NN': MLPRegressor(hidden_layer_sizes=(128,), alpha=0.001, max_iter=2000, early_stopping=True,
                        validation_fraction=0.1, random_state=42),
     'GBM': GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
 }
@@ -49,36 +51,36 @@ model_config = {
 # ==== Main Evaluation ====
 def evaluate_one_model(X, y_log, model_name: str, seed: int = 42):
     assert model_name in model_config or model_name == 'Stacked', f"Invalid model: {model_name}"
-
-    X_train, X_test, y_train_log, y_test_log = train_test_split(X, y_log, test_size=0.2, random_state=seed)
     cv = KFold(n_splits=5, shuffle=True, random_state=seed)
 
     if model_name == 'Stacked':
         base_models = [(name, model_config[name]) for name in ['RF', 'XGB', 'NN', 'GBM']]
         model = StackingRegressor(estimators=base_models, final_estimator=Ridge(), cv=5)
-        model.fit(X_train, y_train_log)
     else:
         model = model_config[model_name]
-        # 5-fold cross-validation on training set
-        # TODO train上cv的意义？
-        print(f"\nTraining {model_name} with 5-fold CV on training set")
-        y_train_cv_pred_log = cross_val_predict(model, X_train, y_train_log, cv=cv)
 
-        # (Optional) 评估 CV 结果（训练集上）
-        # train_cv_metrics = evaluate_metrics(y_train_log, y_train_cv_pred_log)
-        # print(f"{model_name} CV performance on training set:")
-        # for name, value in train_cv_metrics.items():
-        #     print(f"  {name}: {value:.4f}")
+    # 存储每一折的指标
+    all_metrics = defaultdict(list)
 
-        # 再整体 fit 一次，用于 test 评估
+    print(f"\nEvaluating {model_name} with 5-fold cross-validation:")
+    for fold_idx, (train_idx, test_idx) in enumerate(cv.split(X)):
+        X_train, X_test = X[train_idx], X[test_idx]
+        y_train_log, y_test_log = y_log[train_idx], y_log[test_idx]
+
         model.fit(X_train, y_train_log)
+        y_pred_log = model.predict(X_test)
 
-    # 最终在 test set 上评估
-    # TODO 分5个train, test算mean +- std?
-    y_pred_log = model.predict(X_test)
-    metrics = evaluate_metrics(y_test_log, y_pred_log)
-    print(f"\n{model_name} performance on test set:")
-    for name, value in metrics.items():
-        print(f"{name}: {value:.4f}")
+        metrics = evaluate_metrics(y_test_log, y_pred_log)
+        for k, v in metrics.items():
+            all_metrics[k].append(v)
+
+        print(f"  Fold {fold_idx + 1} metrics: " + ", ".join([f"{k}: {v:.4f}" for k, v in metrics.items()]))
+
+    # 汇总结果
+    print(f"\n{model_name} performance (5-fold CV):")
+    for k, v_list in all_metrics.items():
+        mean_v = np.mean(v_list)
+        std_v = np.std(v_list)
+        print(f"{k}: {mean_v:.4f} ± {std_v:.4f}")
 
     return model

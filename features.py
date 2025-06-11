@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
@@ -33,7 +34,8 @@ def prepare_features(df_claims, df_hydro, df_storm):
     # for visualization
     df_viz = df_features.copy()
     df_viz["ZCTA5CE20"] = df["ZCTA5CE20"].values
-    df_viz["buildingCostSum"] = np.log1p(df["buildingCostSum"].values)
+    # df_viz["buildingCostSum"] = np.log1p(df["buildingCostSum"].values)
+    df_viz["totalCost"] = np.log1p(df["totalCost"].values)
 
     # for col in df_features.columns:
     #     print(f"{col}: {df_features[col].dtype}")
@@ -52,10 +54,16 @@ def prepare_features(df_claims, df_hydro, df_storm):
     no_scale_features = ["USA_SSHS"]
     categorical_features = ["mainOccupancyType"]
 
+    # 数值特征子流水线：先填补缺失值再标准化
+    numeric_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="mean")),  # 或 "median"
+        ("scaler", StandardScaler())
+    ])
+
     # 构建预处理器
     preprocessor = ColumnTransformer(
         transformers=[
-            ("num", StandardScaler(), numeric_features),
+            ("num", numeric_transformer, numeric_features),
             ("ordinal", "passthrough", no_scale_features),
             ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features)
         ]
