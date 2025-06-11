@@ -52,8 +52,10 @@ def load_claims(verbose=False):
         print(df_filtered['constructionYear'].describe())
 
     return df_filtered[
-        ['buildingReplacementCost', 'ratedFloodZoneMapped', 'ratedFloodZoneMapped', 'occupancyType', 'constructionYear',
-         'latitude', 'longitude']]
+        ['buildingReplacementCost', 'contentsReplacementCost',
+         'numberOfFloorsInTheInsuredBuilding', 'lowestFloorElevation', 'lowestAdjacentGrade', 'elevationDifference',
+         'elevatedBuildingIndicator', 'ratedFloodZoneMapped', 'ratedFloodZoneMapped', 'occupancyType',
+         'constructionYear', 'latitude', 'longitude']]
 
 
 def load_storms(verbose=False):
@@ -235,7 +237,13 @@ def claims_by_zcta():
 
     # 步骤 4: 聚合计算
     df_grouped = gdf_joined.groupby('ZCTA5CE20').agg({
-        'buildingReplacementCost': 'sum',  # 总赔付金额
+        'buildingReplacementCost': 'sum',  # 房屋赔付金额
+        'contentsReplacementCost': 'sum',  # 室内损失金额
+        'lowestFloorElevation': 'mean',  # 平均最低楼层高度
+        'lowestAdjacentGrade': 'mean',  # 平均最低比邻高度
+        'elevationDifference': 'mean',  # 平均最低比邻高度
+        'elevatedBuildingIndicator': 'sum',  # 架高房屋个数
+        'numberOfFloorsInTheInsuredBuilding': 'mean',  # 平均楼层
         'constructionYear': 'mean',  # 平均建造年份
         'occupancyType': lambda x: x.mode().iloc[0] if not x.mode().empty else None,  # 占用类型众数
         'geometry': 'count'  # 行数 ≈ 理赔记录数量
@@ -244,10 +252,18 @@ def claims_by_zcta():
     # 重命名列
     df_grouped.rename(columns={
         'buildingReplacementCost': 'buildingCostSum',
+        'contentsReplacementCost': 'contentCostSum',
+        'numberOfFloorsInTheInsuredBuilding': 'numFloors',
+        'lowestFloorElevation': 'lowestFloorElevation',
+        'lowestAdjacentGrade': 'lowestAdjacentGrade',
+        'elevationDifference': 'elevationDifference',
+        'elevatedBuildingIndicator': 'elevatedBuildingIndicator',
         'constructionYear': 'avgConstructionYear',
         'occupancyType': 'mainOccupancyType',
         'geometry': 'claimCount'
     }, inplace=True)
+
+    df_grouped['totalCost'] = df_grouped['buildingCostSum'] + df_grouped['contentCostSum']
 
     print(df_grouped)
     print(df_grouped.describe(include='all'))
@@ -410,10 +426,11 @@ if __name__ == '__main__':
     # claims_by_zcta()
     # hydro_by_zcta()
     # storms_by_zcta()
-    df_claims, df_hydro, df_storms = load_processed_data()
-    print(df_claims)
-    print(df_claims.shape)
-    print(df_hydro)
-    print(df_hydro.shape)
-    print(df_storms)
-    print(df_storms.shape)
+    save_data()
+    # df_claims, df_hydro, df_storms = load_processed_data()
+    # print(df_claims)
+    # print(df_claims.shape)
+    # print(df_hydro)
+    # print(df_hydro.shape)
+    # print(df_storms)
+    # print(df_storms.shape)

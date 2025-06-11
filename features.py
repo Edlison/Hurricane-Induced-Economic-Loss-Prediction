@@ -10,7 +10,8 @@ def prepare_features(df_claims, df_hydro, df_storm):
     df = df.merge(df_storm, on="ZCTA5CE20", how="left")
 
     # 目标变量
-    y = df["buildingCostSum"].copy()
+    # y = df["buildingCostSum"].copy()
+    y = df["totalCost"].copy()
 
     # Feature Engineering
     df["buildingAge"] = 2025 - df["avgConstructionYear"]
@@ -22,7 +23,8 @@ def prepare_features(df_claims, df_hydro, df_storm):
 
     # 明确选择特征列
     feature_cols = [
-        "buildingAge", "mainOccupancyType", "claimCount",
+        "buildingAge", "mainOccupancyType", "numFloors", "elevationDifference", "lowestFloorElevation",
+        "lowestAdjacentGrade", "elevatedBuildingIndicator",  # "claimCount"
         "Dam", "Outlet", "Station", "Streamgage",
         "USA_WIND", "USA_SSHS", "USA_PRES"
     ]
@@ -42,8 +44,10 @@ def prepare_features(df_claims, df_hydro, df_storm):
 
     # 分类特征与数值特征明确划分
     numeric_features = [
-        "buildingAge", "claimCount", "Dam", "Outlet", "Station",
-        "Streamgage", "USA_WIND", "USA_PRES"
+        "buildingAge", "numFloors", "elevationDifference", "lowestFloorElevation",
+        "lowestAdjacentGrade", "elevatedBuildingIndicator",  # "claimCount"
+        "Dam", "Outlet", "Station", "Streamgage",
+        "USA_WIND", "USA_PRES"
     ]
     no_scale_features = ["USA_SSHS"]
     categorical_features = ["mainOccupancyType"]
