@@ -18,7 +18,7 @@ feature_names = ['building age', 'floors', 'elevation diff',
 def run_prediction():
     df_claims, df_hydro, df_storms = load_processed_data()
     X, y, _ = prepare_features(df_claims, df_hydro, df_storms)
-    model = evaluate_one_model(X, y, model_name='Stacked')
+    model = evaluate_one_model(X, y, model_name='NN')
 
 
 def run_plot_importance():
@@ -63,4 +63,4 @@ def run_plot_heatmap_2():
 
 
 if __name__ == '__main__':
-    run_plot_heatmap_2()
+    run_prediction()

@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, StackingRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.neural_network import MLPRegressor
 from xgboost import XGBRegressor
 
@@ -22,8 +22,6 @@ def rmsle(y_true, y_pred):
 
 def evaluate_metrics(y_true_log, y_pred_log):
     """评估指标均在原始尺度下计算"""
-    # TODO 直接log space 合理性
-    # TODO y 通胀
     # y_true = np.expm1(y_true_log)
     y_true = y_true_log
     # y_pred = np.expm1(y_pred_log)
@@ -42,9 +40,10 @@ def evaluate_metrics(y_true_log, y_pred_log):
 model_config = {
     'RF': RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42),
     'XGB': XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42, verbosity=0),
-    'NN': MLPRegressor(hidden_layer_sizes=(128,), alpha=0.01, learning_rate_init=0.001, max_iter=2000, early_stopping=True,
+    'NN': MLPRegressor(hidden_layer_sizes=(128,), alpha=0.01, learning_rate_init=0.001, max_iter=2000,
+                       early_stopping=True,
                        validation_fraction=0.1, random_state=42),
-    'GBM': GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+    'GBM': GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42)
 }
 
 
@@ -55,7 +54,22 @@ def evaluate_one_model(X, y_log, model_name: str, seed: int = 42):
 
     if model_name == 'Stacked':
         base_models = [(name, model_config[name]) for name in ['RF', 'XGB', 'NN', 'GBM']]
-        model = StackingRegressor(estimators=base_models, final_estimator=Ridge(), cv=5)
+        stacking_model = StackingRegressor(estimators=base_models, final_estimator=Ridge(), cv=5)
+
+        param_grid = {
+            'XGB__max_depth': [2],
+            'RF__max_depth': [8],
+            'GBM__max_depth': [4],
+        }
+
+        model = GridSearchCV(
+            estimator=stacking_model,
+            param_grid=param_grid,
+            cv=cv,
+            scoring='neg_mean_squared_error',
+            n_jobs=-1,
+            verbose=2
+        )
     else:
         model = model_config[model_name]
 
@@ -81,6 +95,6 @@ def evaluate_one_model(X, y_log, model_name: str, seed: int = 42):
     for k, v_list in all_metrics.items():
         mean_v = np.mean(v_list)
         std_v = np.std(v_list)
-        print(f"{k}: {mean_v:.2f} \pm {std_v:.2f}")
+        print(f"{k}: {mean_v:.3f} \pm {std_v:.1f}")
 
     return model
