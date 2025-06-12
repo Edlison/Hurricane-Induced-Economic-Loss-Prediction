@@ -272,3 +272,13 @@ def plot_heatmap_2(df_viz: pd.DataFrame, gdf_zcta: gpd.GeoDataFrame) -> None:
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # 不留边
     plt.savefig("./imgs/plot_heatmap_2.pdf", format="pdf", bbox_inches='tight', pad_inches=0, dpi=300)
     plt.show()
+
+
+if __name__ == '__main__':
+    from load_data import load_zcta, load_processed_data
+    from features import prepare_features
+
+    df_claims, df_hydro, df_storms = load_processed_data()
+    X, y, df_viz = prepare_features(df_claims, df_hydro, df_storms)
+    gdf_zcta = load_zcta()
+    plot_heatmap(df_viz, gdf_zcta, feature='Dam')

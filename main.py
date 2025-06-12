@@ -1,12 +1,11 @@
+import argparse
+
 from features import prepare_features
 from load_data import load_processed_data, load_zcta
 from model import evaluate_one_model
-from visualization import plot_feature_importance, plot_feature_importance_xtick, plot_heatmap, plot_heatmap_grid, plot_heatmap_2
+from visualization import plot_feature_importance, plot_feature_importance_xtick, plot_heatmap, plot_heatmap_grid, \
+    plot_heatmap_2
 
-# feature_names = ['building age', 'claim count', 'dam num', 'outlet num',
-#                  'station num', 'streamgage num', 'wind speed', 'pressure',
-#                  'hurricane scale', 'occupancy type',
-#                  'occupancy type', 'occupancy type']
 feature_names = ['building age', 'floors', 'elevation diff',
                  'lowest floor', 'lowest adjacent',
                  'elevated buildings', 'dam', 'outlet', 'station',
@@ -15,10 +14,10 @@ feature_names = ['building age', 'floors', 'elevation diff',
                  'occupancy type']
 
 
-def run_prediction():
+def run_prediction(model_name):
     df_claims, df_hydro, df_storms = load_processed_data()
     X, y, _ = prepare_features(df_claims, df_hydro, df_storms)
-    model = evaluate_one_model(X, y, model_name='NN')
+    model = evaluate_one_model(X, y, model_name)
 
 
 def run_plot_importance():
@@ -63,4 +62,9 @@ def run_plot_heatmap_2():
 
 
 if __name__ == '__main__':
-    run_prediction()
+    parser = argparse.ArgumentParser(description='Run ML model for hurricane loss prediction')
+    parser.add_argument('--model_name', type=str, required=True,
+                        help='Name of the model to run (e.g., RF, XGB, NN, Stacked)')
+    args = parser.parse_args()
+
+    run_prediction(model_name=args.model_name)
